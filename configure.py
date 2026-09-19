@@ -1056,7 +1056,7 @@ config.libs = [
             GameCodeObject(NonMatching, "Black/VillagerHome.cpp"),
             GameCodeObject(NonMatching, "Black/VillagerHousewife.cpp"),
             GameCodeObject(NonMatching, "Black/VillagerInfo.cpp"),
-            GameCodeObject(NonMatching, "Black/VillagerLeader.cpp"),
+            GameCodeObject(MatchingFor("BW1W120"), "Black/VillagerLeader.cpp"),
             GameCodeObject(NonMatching, "Black/villagernames.cpp"),
             GameCodeObject(MatchingFor("BW1W110", "BW1W120"), "Black/VillagerPlaytime.cpp"),
             GameCodeObject(NonMatching, "Black/VillagerReaction.cpp"),
