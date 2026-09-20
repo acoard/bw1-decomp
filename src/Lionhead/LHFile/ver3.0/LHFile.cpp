@@ -88,10 +88,10 @@ uint32_t LHFile::GetSegmentData(char* segment_name, void* data, uint32_t data_si
 }
 
 // BW1W120 007bd500 LHFile::Open(LH_FILE_MODE)
-// TODO: Control flow and instruction selection match; the remaining diff is the
-// compiler's `this`/`mode` register assignment (target keeps `this` in ebx and
-// `mode` in ebp; cl6 picks the reverse here). Not reproduced by any tested
-// source shape.
+// TODO: The logic matches the target. The remaining differences come from the
+// register assignment: the target keeps `this` in ebx and `mode` in ebp, and
+// this build swaps them. The source changes tested so far did not change the
+// assignment.
 uint32_t LHFile::Open(LH_FILE_MODE mode)
 {
 	DWORD    creation_disposition;
@@ -178,10 +178,11 @@ uint32_t LHReleasedFile::Open(LH_FILE_MODE mode)
 }
 
 // BW1W120 007bd7d0 LHFile::VerifyFile(void)
-// TODO: Control flow matches; the remaining diff is the compiler's stack-slot
-// order (target places Buffer below lDistanceToMove) plus two scheduling
-// choices around the `new LHSegmentDesc` result. Neither changed with the
-// declaration/initialization orders tested.
+// TODO: The logic matches the target. Most remaining differences come from the
+// stack frame layout: the target puts Buffer at the lower address and
+// lDistanceToMove above it, and this build swaps them. The tested changes to
+// declaration order, statement order, and local variable types did not change
+// the layout.
 uint32_t LHFile::VerifyFile()
 {
 	char Buffer[36];
