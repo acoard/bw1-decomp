@@ -88,27 +88,34 @@ uint32_t LHFile::GetSegmentData(char* segment_name, void* data, uint32_t data_si
 }
 
 // BW1W120 007bd500 LHFile::Open(LH_FILE_MODE)
+// TODO: Control flow and instruction selection match; the remaining diff is the
+// compiler's `this`/`mode` register assignment (target keeps `this` in ebx and
+// `mode` in ebp; cl6 picks the reverse here). Not reproduced by any tested
+// source shape.
 uint32_t LHFile::Open(LH_FILE_MODE mode)
 {
 	DWORD    creation_disposition;
 	uint32_t Buffer[2];
-	char     v8;
+	int      exists;
 
 	if (opened)
 		return 3;
 	if (mode != 2 && mode && mode != 3)
 		return 3;
-	if (!file_name || !strlen(file_name))
-		return 3;
+	if (!file_name)
+		goto fail;
+	if (!strlen(file_name))
+		goto fail;
 	if (mode == 3 && custom_write_function)
 		return 3;
 	creation_disposition = 2;
-	if (GetFileAttributesA(file_name) == -1)
+	exists = GetFileAttributesA(file_name) != -1;
+	if (!exists)
 	{
 		if (mode == 2 || mode == 3)
 			return 2;
 	}
-	else
+	if (exists)
 	{
 		creation_disposition = 5;
 		if (mode == 3)
@@ -124,7 +131,7 @@ uint32_t LHFile::Open(LH_FILE_MODE mode)
 	opened = 1;
 	Buffer[1] = 0;
 	FileMode = mode;
-	v8 = 0;
+	((char*)Buffer)[8] = 0;
 	if (mode == 2 || mode == 3)
 	{
 		ReadData(Buffer, 8);
@@ -149,6 +156,8 @@ uint32_t LHFile::Open(LH_FILE_MODE mode)
 			return 3;
 	}
 	return 0;
+fail:
+	return 3;
 }
 
 // BW1W120 007bd730 LHReleasedFile::Open(LH_FILE_MODE)
@@ -169,6 +178,10 @@ uint32_t LHReleasedFile::Open(LH_FILE_MODE mode)
 }
 
 // BW1W120 007bd7d0 LHFile::VerifyFile(void)
+// TODO: Control flow matches; the remaining diff is the compiler's stack-slot
+// order (target places Buffer below lDistanceToMove) plus two scheduling
+// choices around the `new LHSegmentDesc` result. Neither changed with the
+// declaration/initialization orders tested.
 uint32_t LHFile::VerifyFile()
 {
 	char Buffer[36];
@@ -178,45 +191,40 @@ uint32_t LHFile::VerifyFile()
 	lDistanceToMove[1] = 0;
 	memset(Buffer, 0, 33);
 	int Data = ReadData(Buffer, 0x20);
-	if (Data != 2)
+	while (Data != 2)
 	{
-		while (1)
+		if (Data)
+			return 3;
+		if (ReadData(lDistanceToMove, 4))
+			return 2;
+		if (custom_set_file_pointer_function)
+			custom_set_file_pointer_function(lDistanceToMove[0], 1, CustomFunctionUserData);
+		else
+			SetFilePointer(handle, lDistanceToMove[0], 0, 1);
+		int v5;
+		if (field_0x8)
 		{
-			if (Data)
-				return 3;
-			if (ReadData(lDistanceToMove, 4))
-				return 2;
-			if (custom_set_file_pointer_function)
-				custom_set_file_pointer_function(lDistanceToMove[0], 1, CustomFunctionUserData);
-			else
-				SetFilePointer(handle, lDistanceToMove[0], 0, 1);
-			int v5;
-			if (field_0x8)
-			{
-				LHLinkedNode*  node = (LHLinkedNode*)field_0x4;
-				LHSegmentDesc* d = node ? node->desc : 0;
-				v5 = d->offset + d->size + 36;
-			}
-			else
-			{
-				v5 = 44;
-			}
-			LHSegmentDesc* v7 = new LHSegmentDesc(Buffer, v5, lDistanceToMove[0]);
-			if (v7)
-			{
-				LHLinkedNode* v8 = new LHLinkedNode;
-				if (v8)
-				{
-					v8->desc = v7;
-					v8->next = (LHLinkedNode*)field_0x4;
-					field_0x4 = (uint32_t*)v8;
-					++field_0x8;
-				}
-			}
-			Data = ReadData(Buffer, 0x20);
-			if (Data == 2)
-				break;
+			LHLinkedNode*  node = (LHLinkedNode*)field_0x4;
+			LHSegmentDesc* d = node ? node->desc : 0;
+			v5 = d->offset + d->size + 36;
 		}
+		else
+		{
+			v5 = 44;
+		}
+		LHSegmentDesc* v7 = new LHSegmentDesc(Buffer, v5, lDistanceToMove[0]);
+		if (v7)
+		{
+			LHLinkedNode* v8 = new LHLinkedNode;
+			if (v8)
+			{
+				v8->desc = v7;
+				v8->next = (LHLinkedNode*)field_0x4;
+				field_0x4 = (uint32_t*)v8;
+				++field_0x8;
+			}
+		}
+		Data = ReadData(Buffer, 0x20);
 	}
 	if (custom_set_file_pointer_function)
 		custom_set_file_pointer_function(8, 0, CustomFunctionUserData);
@@ -427,7 +435,7 @@ uint32_t LHFile::GetSegment(char* segment, LHSegment* dataOut, int bAllocMemory)
 		if (AllocSegDataMem(dataOut))
 			return 3;
 	}
-	else if (!dataOut->buffer || v7 != segmentLocation->offset)
+	if (!bAllocMemory && (!dataOut->buffer || v7 != segmentLocation->offset))
 	{
 		return 3;
 	}
