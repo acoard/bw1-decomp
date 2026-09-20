@@ -33,16 +33,24 @@ LHSegmentDesc::LHSegmentDesc(char* name, int size, int offset)
 // BW1W120 007bd390 LHFile::SetName(char const *)
 uint32_t LHFile::SetName(const char* name)
 {
+	char* v4;
+
 	if (opened)
 		return 3;
-	if (!name || !strlen(name))
-		return 3;
-	char* v4 = (char*)malloc(strlen(name) + 4);
+	if (!name)
+		goto fail;
+	if (!strlen(name))
+		goto fail;
+	v4 = (char*)malloc(strlen(name) + 4);
 	file_name = v4;
-	if (!v4)
-		return 4;
-	strcpy(v4, name);
-	return 0;
+	if (v4)
+	{
+		strcpy(v4, name);
+		return 0;
+	}
+	return 4;
+fail:
+	return 3;
 }
 
 // BW1W120 007bd420 LHFile::GetSegmentDataInChunks(char *, char *, unsigned int, unsigned int, void (*)(void), int)
@@ -149,17 +157,15 @@ uint32_t LHReleasedFile::Open(LH_FILE_MODE mode)
 	char v4[256];
 
 	uint32_t result = LHFile::Open(mode);
-	if (result)
+	if (!result)
+		return 0;
+	if (mode == 2)
 	{
-		if (mode == 2)
-		{
-			sprintf(v4, "%c:\\%s", g_GameDriveCharacter, file_name);
-			strcpy(file_name, v4);
-			return LHFile::Open((LH_FILE_MODE)2);
-		}
-		return 2;
+		sprintf(v4, "%c:\\%s", g_GameDriveCharacter, file_name);
+		strcpy(file_name, v4);
+		return LHFile::Open((LH_FILE_MODE)2);
 	}
-	return result;
+	return 2;
 }
 
 // BW1W120 007bd7d0 LHFile::VerifyFile(void)
